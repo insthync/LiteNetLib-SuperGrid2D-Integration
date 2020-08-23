@@ -42,6 +42,62 @@ namespace LiteNetLibManager.SuperGrid2D
         private void OnDestroy()
         {
             assets.onInitialize.RemoveListener(InitGrid);
+            Grid = null;
+        }
+
+#if UNITY_EDITOR
+        private void OnDrawGizmosSelected()
+        {
+            if (Grid == null) return;
+            Vector3 topLeft = GetTopLeft();
+            Vector3 cellSize = GetCellSize();
+            Vector3 halfCellSize = cellSize * 0.5f;
+            Gizmos.color = Color.green;
+            for (int y = 0; y < Grid.Rows; ++y)
+            {
+                for (int x = 0; x < Grid.Rows; ++x)
+                {
+                    Vector3 offsets = GetOffsets(x, y);
+                    Gizmos.DrawWireCube(topLeft + halfCellSize + offsets, cellSize);
+                }
+            }
+        }
+#endif
+
+        public Vector3 GetTopLeft()
+        {
+            switch (AxisMode)
+            {
+                case EAxisMode.XZ:
+                    return new Vector3(Grid.TopLeft.x, 0, Grid.TopLeft.y);
+                case EAxisMode.XY:
+                    return new Vector3(Grid.TopLeft.x, Grid.TopLeft.y, 0);
+            }
+            return Vector3.zero;
+        }
+
+        public Vector3 GetCellSize()
+        {
+            switch (AxisMode)
+            {
+                case EAxisMode.XZ:
+                    return new Vector3(Grid.CellSize.x, 0, Grid.CellSize.y);
+                case EAxisMode.XY:
+                    return new Vector3(Grid.CellSize.x, Grid.CellSize.y, 0);
+            }
+            return Vector3.zero;
+        }
+
+        public Vector3 GetOffsets(int x, int y)
+        {
+            switch (AxisMode)
+            {
+                case EAxisMode.XZ:
+                    return new Vector3(Grid.CellSize.x * x, 0, Grid.CellSize.y * y);
+                case EAxisMode.XY:
+                    return new Vector3(Grid.CellSize.x * x, Grid.CellSize.y * y, 0);
+            }
+            return Vector3.zero;
         }
 
         private void InitGrid()
