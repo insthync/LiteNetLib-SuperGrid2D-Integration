@@ -12,10 +12,15 @@ namespace LiteNetLibManager.SuperGrid2D
         public float updateInterval = 1.0f;
         private float updateCountDown;
 
+        public override void OnSetup()
+        {
+            base.OnSetup();
+            GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
+        }
+
         void Start()
         {
             updateCountDown = updateInterval + Random.value;
-            GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
         }
 
         void Update()
@@ -40,6 +45,12 @@ namespace LiteNetLibManager.SuperGrid2D
             GridManager.Grid.Update(ObjectId, new Point(GetPosition()));
         }
 
+        private void OnDestroy()
+        {
+            if (GridManager.Grid != null)
+                GridManager.Grid.Remove(ObjectId);
+        }
+
         public override bool ShouldAddSubscriber(LiteNetLibPlayer subscriber)
         {
             if (subscriber == null)
@@ -62,7 +73,8 @@ namespace LiteNetLibManager.SuperGrid2D
         {
             foreach (LiteNetLibIdentity entry in GridManager.Grid.Contact(new Circle(GetPosition(), range)))
             {
-                subscribers.Add(entry.Player);
+                if (entry != null && entry.Player != null)
+                    subscribers.Add(entry.Player);
             }
             return true;
         }
