@@ -15,6 +15,7 @@ namespace LiteNetLibManager.SuperGrid2D
         void Start()
         {
             updateCountDown = updateInterval + Random.value;
+            GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
         }
 
         void Update()
@@ -30,6 +31,13 @@ namespace LiteNetLibManager.SuperGrid2D
                 // Request identity to rebuild subscribers
                 Identity.RebuildSubscribers(false);
             }
+        }
+
+        void LateUpdate()
+        {
+            if (!IsServer)
+                return;
+            GridManager.Grid.Update(ObjectId, new Point(GetPosition()));
         }
 
         public override bool ShouldAddSubscriber(LiteNetLibPlayer subscriber)
@@ -52,21 +60,7 @@ namespace LiteNetLibManager.SuperGrid2D
 
         public override bool OnRebuildSubscribers(HashSet<LiteNetLibPlayer> subscribers, bool initialize)
         {
-            float x = 0f;
-            float y = 0f;
-            // find players within range
-            switch (GridManager.AxisMode)
-            {
-                case GridManager.EAxisMode.XZ:
-                    x = transform.position.x;
-                    y = transform.position.z;
-                    break;
-                case GridManager.EAxisMode.XY:
-                    x = transform.position.x;
-                    y = transform.position.y;
-                    break;
-            }
-            foreach (LiteNetLibIdentity entry in GridManager.Grid.Contact(new Circle(x, y, range)))
+            foreach (LiteNetLibIdentity entry in GridManager.Grid.Contact(new Circle(GetPosition(), range)))
             {
                 subscribers.Add(entry.Player);
             }
@@ -95,6 +89,19 @@ namespace LiteNetLibManager.SuperGrid2D
             {
                 renderers[i].forceRenderingOff = true;
             }
+        }
+
+        public Vector2 GetPosition()
+        {
+            // find players within range
+            switch (GridManager.AxisMode)
+            {
+                case GridManager.EAxisMode.XZ:
+                    return new Vector2(transform.position.x, transform.position.z);
+                case GridManager.EAxisMode.XY:
+                    return new Vector2(transform.position.x, transform.position.y);
+            }
+            return Vector2.zero;
         }
     }
 }
