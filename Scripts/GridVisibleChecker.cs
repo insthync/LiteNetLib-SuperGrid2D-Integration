@@ -11,19 +11,20 @@ namespace LiteNetLibManager.SuperGrid2D
         public int range = 10;
         public float updateInterval = 1.0f;
         private float updateCountDown;
+        private bool previouslyHasPlayer;
 
         public override void OnSetup()
         {
             base.OnSetup();
-            GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
+            UpdatePosition();
         }
 
-        void Start()
+        private void Start()
         {
-            updateCountDown = updateInterval + Random.value;
+            updateCountDown = updateInterval;
         }
 
-        void Update()
+        private void Update()
         {
             if (!IsServer)
                 return;
@@ -38,17 +39,34 @@ namespace LiteNetLibManager.SuperGrid2D
             }
         }
 
-        void LateUpdate()
+        private void LateUpdate()
+        {
+            UpdatePosition();
+        }
+
+        private void UpdatePosition()
         {
             if (!IsServer)
                 return;
-            GridManager.Grid.Update(ObjectId, new Point(GetPosition()));
+            // Updating position in grid for behavours that has player only
+            if (previouslyHasPlayer != ConnectionId >= 0)
+            {
+                previouslyHasPlayer = ConnectionId >= 0;
+                if (previouslyHasPlayer)
+                    GridManager.Grid.Add(ConnectionId, Identity, new Point(GetPosition()));
+                else
+                    GridManager.Grid.Remove(ConnectionId);
+            }
+            if (previouslyHasPlayer)
+            {
+                GridManager.Grid.Update(ConnectionId, new Point(GetPosition()));
+            }
         }
 
         private void OnDestroy()
         {
             if (GridManager.Grid != null)
-                GridManager.Grid.Remove(ObjectId);
+                GridManager.Grid.Remove(ConnectionId);
         }
 
         public override bool ShouldAddSubscriber(LiteNetLibPlayer subscriber)
