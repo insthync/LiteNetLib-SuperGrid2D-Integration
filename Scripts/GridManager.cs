@@ -30,7 +30,7 @@ namespace LiteNetLibManager.SuperGrid2D
         public bool includeInactiveComponents = true;
         public float cellSize = 100f;
         private LiteNetLibAssets assets;
-        public static DynamicGrid2D<long, LiteNetLibIdentity> Grid { get; private set; }
+        public static DynamicGrid2D<uint, LiteNetLibIdentity> Grid { get; private set; }
         public static EAxisMode AxisMode { get; private set; }
 
         private void Awake()
@@ -162,12 +162,12 @@ namespace LiteNetLibManager.SuperGrid2D
             switch (axisMode)
             {
                 case EAxisMode.XZ:
-                    Grid = new DynamicGrid2D<long, LiteNetLibIdentity>(
+                    Grid = new DynamicGrid2D<uint, LiteNetLibIdentity>(
                         new Vector2(bounds.min.x, bounds.min.z),
                         bounds.size.x, bounds.size.z, cellSize);
                     break;
                 case EAxisMode.XY:
-                    Grid = new DynamicGrid2D<long, LiteNetLibIdentity>(
+                    Grid = new DynamicGrid2D<uint, LiteNetLibIdentity>(
                         new Vector2(bounds.min.x, bounds.min.y),
                         bounds.size.x, bounds.size.y, cellSize);
                     break;

@@ -53,20 +53,20 @@ namespace LiteNetLibManager.SuperGrid2D
             {
                 previouslyHasPlayer = ConnectionId >= 0;
                 if (previouslyHasPlayer)
-                    GridManager.Grid.Add(ConnectionId, Identity, new Point(GetPosition()));
+                    GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
                 else
-                    GridManager.Grid.Remove(ConnectionId);
+                    GridManager.Grid.Remove(ObjectId);
             }
             if (previouslyHasPlayer)
             {
-                GridManager.Grid.Update(ConnectionId, new Point(GetPosition()));
+                GridManager.Grid.Update(ObjectId, new Point(GetPosition()));
             }
         }
 
         private void OnDestroy()
         {
-            if (GridManager.Grid != null)
-                GridManager.Grid.Remove(ConnectionId);
+            if (GridManager.Grid != null && previouslyHasPlayer)
+                GridManager.Grid.Remove(ObjectId);
         }
 
         public override bool ShouldAddSubscriber(LiteNetLibPlayer subscriber)
