@@ -1,23 +1,17 @@
 ﻿using SuperGrid2D;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace LiteNetLibManager.SuperGrid2D
 {
-    public class GridVisibleChecker : LiteNetLibBehaviour
+    public class GridVisibleChecker : BaseLiteNetLibVisibleChecker
     {
         public int range = 10;
         public float updateInterval = 1.0f;
+        private readonly HashSet<uint> subscribings = new HashSet<uint>();
         private float updateCountDown;
-        private bool previouslyHasPlayer;
-
-        public override void OnSetup()
-        {
-            base.OnSetup();
-            UpdatePosition();
-        }
+        private bool isSpawned;
 
         private void Start()
         {
@@ -26,7 +20,7 @@ namespace LiteNetLibManager.SuperGrid2D
 
         private void Update()
         {
-            if (!IsServer)
+            if (!IsServer || ConnectionId < 0)
                 return;
 
             updateCountDown -= Time.unscaledDeltaTime;
@@ -34,8 +28,8 @@ namespace LiteNetLibManager.SuperGrid2D
             if (updateCountDown <= 0f)
             {
                 updateCountDown = updateInterval;
-                // Request identity to rebuild subscribers
-                Identity.RebuildSubscribers(false);
+                FindObjectsToSubscribe();
+                UpdateSubscribings(subscribings);
             }
         }
 
@@ -48,16 +42,16 @@ namespace LiteNetLibManager.SuperGrid2D
         {
             if (!IsServer)
                 return;
-            // Updating position in grid for behavours that has player only
-            if (previouslyHasPlayer != ConnectionId >= 0)
+            // Updating position in grid for behaviours that has player only
+            if (isSpawned != Identity.IsSpawned)
             {
-                previouslyHasPlayer = ConnectionId >= 0;
-                if (previouslyHasPlayer)
+                isSpawned = Identity.IsSpawned;
+                if (isSpawned)
                     GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
                 else
                     GridManager.Grid.Remove(ObjectId);
             }
-            if (previouslyHasPlayer)
+            if (isSpawned)
             {
                 GridManager.Grid.Update(ObjectId, new Point(GetPosition()));
             }
@@ -65,59 +59,23 @@ namespace LiteNetLibManager.SuperGrid2D
 
         private void OnDestroy()
         {
-            if (GridManager.Grid != null && previouslyHasPlayer)
+            if (GridManager.Grid != null && isSpawned)
                 GridManager.Grid.Remove(ObjectId);
         }
 
-        public override bool ShouldAddSubscriber(LiteNetLibPlayer subscriber)
+        public override HashSet<uint> GetInitializeSubscribings()
         {
-            if (subscriber == null)
-                return false;
-
-            if (subscriber.ConnectionId == ConnectionId)
-                return true;
-
-            Vector3 pos;
-            foreach (LiteNetLibIdentity spawnedObject in subscriber.GetSpawnedObjects())
-            {
-                pos = spawnedObject.transform.position;
-                if ((pos - transform.position).sqrMagnitude < range * range)
-                    return true;
-            }
-            return false;
+            UpdatePosition();
+            FindObjectsToSubscribe();
+            return subscribings;
         }
 
-        public override bool OnRebuildSubscribers(HashSet<LiteNetLibPlayer> subscribers, bool initialize)
+        private void FindObjectsToSubscribe()
         {
+            subscribings.Clear();
             foreach (LiteNetLibIdentity entry in GridManager.Grid.Contact(new Circle(GetPosition(), range)))
             {
-                if (entry != null && entry.Player != null)
-                    subscribers.Add(entry.Player);
-            }
-            return true;
-        }
-
-        public override void OnServerSubscribingAdded()
-        {
-            base.OnServerSubscribingAdded();
-            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
-                return;
-            Renderer[] renderers = GetComponentsInChildren<Renderer>();
-            for (int i = 0; i < renderers.Length; ++i)
-            {
-                renderers[i].forceRenderingOff = false;
-            }
-        }
-
-        public override void OnServerSubscribingRemoved()
-        {
-            base.OnServerSubscribingRemoved();
-            if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
-                return;
-            Renderer[] renderers = GetComponentsInChildren<Renderer>();
-            for (int i = 0; i < renderers.Length; ++i)
-            {
-                renderers[i].forceRenderingOff = true;
+                subscribings.Add(entry.ObjectId);
             }
         }
 
