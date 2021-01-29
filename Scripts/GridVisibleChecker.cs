@@ -1,7 +1,6 @@
 ﻿using SuperGrid2D;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace LiteNetLibManager.SuperGrid2D
 {
@@ -90,6 +89,11 @@ namespace LiteNetLibManager.SuperGrid2D
                     return new Vector2(transform.position.x, transform.position.y);
             }
             return Vector2.zero;
+        }
+
+        public override bool ShouldSubscribe(LiteNetLibIdentity identity)
+        {
+            return (identity.transform.position - transform.position).sqrMagnitude < range * range;
         }
     }
 }
