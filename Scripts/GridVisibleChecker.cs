@@ -8,9 +8,11 @@ namespace LiteNetLibManager.SuperGrid2D
     {
         public int range = 10;
         public float updateInterval = 1.0f;
+        public float movementTheshold = 1.0f;
         private readonly HashSet<uint> subscribings = new HashSet<uint>();
         private float updateCountDown;
         private bool isSpawned;
+        private Vector3 previousPosition;
 
         private void Start()
         {
@@ -52,7 +54,12 @@ namespace LiteNetLibManager.SuperGrid2D
             }
             if (isSpawned)
             {
-                GridManager.Grid.Update(ObjectId, new Point(GetPosition()));
+                Vector3 updatingPosition = GetPosition();
+                if (Vector3.Distance(previousPosition, updatingPosition) > movementTheshold)
+                {
+                    GridManager.Grid.Update(ObjectId, new Point(updatingPosition));
+                    previousPosition = updatingPosition;
+                }
             }
         }
 
