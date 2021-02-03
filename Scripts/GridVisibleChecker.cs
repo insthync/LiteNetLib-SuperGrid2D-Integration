@@ -12,6 +12,7 @@ namespace LiteNetLibManager.SuperGrid2D
         private readonly HashSet<uint> subscribings = new HashSet<uint>();
         private float updateCountDown;
         private bool isSpawned;
+        private bool setPreviousPositionOnce;
         private Vector3 previousPosition;
 
         private void Start()
@@ -51,14 +52,16 @@ namespace LiteNetLibManager.SuperGrid2D
                     GridManager.Grid.Add(ObjectId, Identity, new Point(GetPosition()));
                 else
                     GridManager.Grid.Remove(ObjectId);
+                setPreviousPositionOnce = false;
             }
             if (isSpawned)
             {
                 Vector3 updatingPosition = GetPosition();
-                if (Vector3.Distance(previousPosition, updatingPosition) > movementTheshold)
+                if (!setPreviousPositionOnce || Vector3.Distance(previousPosition, updatingPosition) > movementTheshold)
                 {
                     GridManager.Grid.Update(ObjectId, new Point(updatingPosition));
                     previousPosition = updatingPosition;
+                    setPreviousPositionOnce = true;
                 }
             }
         }
