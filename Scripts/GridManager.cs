@@ -16,7 +16,8 @@ namespace LiteNetLibManager.SuperGrid2D
         {
             Renderer,
             Collider3D,
-            Collider2D
+            Collider2D,
+            Terrain,
         };
 
         public enum EAxisMode
@@ -107,6 +108,7 @@ namespace LiteNetLibManager.SuperGrid2D
             List<Renderer> tempRenderers = new List<Renderer>();
             List<Collider> tempColliders3D = new List<Collider>();
             List<Collider2D> tempColliders2D = new List<Collider2D>();
+            List<TerrainCollider> terrainColliders = new List<TerrainCollider>();
             for (int i = 0; i < rootGameObjects.Length; ++i)
             {
                 switch (generateGridMode)
@@ -119,6 +121,9 @@ namespace LiteNetLibManager.SuperGrid2D
                         break;
                     case EGenerateGridMode.Collider2D:
                         tempColliders2D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider2D>(includeInactiveComponents));
+                        break;
+                    case EGenerateGridMode.Terrain:
+                        terrainColliders.AddRange(rootGameObjects[i].GetComponentsInChildren<TerrainCollider>(includeInactiveComponents));
                         break;
                 }
             }
@@ -154,6 +159,16 @@ namespace LiteNetLibManager.SuperGrid2D
                             bounds = comp.bounds;
                         else
                             bounds.Encapsulate(comp.bounds);
+                        setBoundsOnce = true;
+                    }
+                    break;
+                case EGenerateGridMode.Terrain:
+                    foreach (TerrainCollider comp in terrainColliders)
+                    {
+                        if (!setBoundsOnce)
+                            bounds = comp.terrainData.bounds;
+                        else
+                            bounds.Encapsulate(comp.terrainData.bounds);
                         setBoundsOnce = true;
                     }
                     break;
