@@ -72,13 +72,6 @@ namespace LiteNetLibManager.SuperGrid2D
                 GridManager.Grid.Remove(ObjectId);
         }
 
-        public override HashSet<uint> GetInitializeSubscribings()
-        {
-            UpdatePosition();
-            FindObjectsToSubscribe();
-            return subscribings;
-        }
-
         private void FindObjectsToSubscribe()
         {
             subscribings.Clear();
