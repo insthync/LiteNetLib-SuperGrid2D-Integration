@@ -96,7 +96,12 @@ namespace LiteNetLibManager.SuperGrid2D
 
         public override bool ShouldSubscribe(LiteNetLibIdentity identity)
         {
-            return (identity.transform.position - transform.position).sqrMagnitude < range * range;
+            return !(identity.VisibleChecker is GridVisibleChecker) || (identity.transform.position - transform.position).sqrMagnitude < range * range;
+        }
+
+        public override bool ShouldUnsubscribe(LiteNetLibIdentity identity)
+        {
+            return (identity.VisibleChecker is GridVisibleChecker) || identity.IsDestroyed;
         }
     }
 }
