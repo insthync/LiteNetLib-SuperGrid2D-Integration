@@ -75,9 +75,10 @@ namespace LiteNetLibManager.SuperGrid2D
         private void FindObjectsToSubscribe()
         {
             subscribings.Clear();
-            foreach (LiteNetLibIdentity entry in GridManager.Grid.Contact(new Circle(GetPosition(), range)))
+            foreach (LiteNetLibIdentity tempIdentity in GridManager.Grid.Contact(new Circle(GetPosition(), range)))
             {
-                subscribings.Add(entry.ObjectId);
+                if (tempIdentity != null && tempIdentity.IsSpawned && !Identity.IsIdentityHideFromThis(tempIdentity))
+                    subscribings.Add(tempIdentity.ObjectId);
             }
         }
 
