@@ -10,7 +10,7 @@ namespace LiteNetLibManager.SuperGrid2D
     /// Attach this component to the same game object with LiteNetLibGameManager
     /// it will create dynamic grid when online scene loaded
     /// </summary>
-    public class GridManager : MonoBehaviour
+    public class GridManager : BaseInterestManager
     {
         public enum EGenerateGridMode
         {
@@ -30,75 +30,91 @@ namespace LiteNetLibManager.SuperGrid2D
         public EAxisMode axisMode = EAxisMode.XZ;
         public bool includeInactiveComponents = true;
         public float cellSize = 100f;
-        private LiteNetLibAssets assets;
-        public static DynamicGrid2D<uint, LiteNetLibIdentity> Grid { get; private set; }
+        [Tooltip("Update every ? seconds")]
+        public float updateInterval = 1.0f;
         public static EAxisMode AxisMode { get; private set; }
 
-        private void Awake()
+        private StaticGrid2D<uint> grid = null;
+        private float updateCountDown = 0f;
+
+        protected override void Awake()
         {
-            assets = GetComponent<LiteNetLibAssets>();
-            assets.onInitialize.AddListener(InitGrid);
+            base.Awake();
+            Manager.Assets.onInitialize.AddListener(InitGrid);
         }
 
         private void OnDestroy()
         {
-            assets.onInitialize.RemoveListener(InitGrid);
-            Grid = null;
+            Manager.Assets.onInitialize.RemoveListener(InitGrid);
+            grid = null;
         }
 
 #if UNITY_EDITOR
         private void OnDrawGizmosSelected()
         {
-            if (Grid == null) return;
-            Vector3 topLeft = GetTopLeft();
-            Vector3 cellSize = GetCellSize();
+            if (grid == null) return;
+            Vector3 topLeft = GetTopLeft(grid);
+            Vector3 cellSize = GetCellSize(grid);
             Vector3 halfCellSize = cellSize * 0.5f;
             Gizmos.color = Color.green;
-            for (int y = 0; y < Grid.Rows; ++y)
+            for (int y = 0; y < grid.Rows; ++y)
             {
-                for (int x = 0; x < Grid.Rows; ++x)
+                for (int x = 0; x < grid.Rows; ++x)
                 {
-                    Vector3 offsets = GetOffsets(x, y);
+                    Vector3 offsets = GetOffsets(grid, x, y);
                     Gizmos.DrawWireCube(topLeft + halfCellSize + offsets, cellSize);
                 }
             }
         }
 #endif
 
-        public Vector3 GetTopLeft()
+        public Vector3 GetTopLeft(IGridDimensions2D grid)
         {
             switch (AxisMode)
             {
                 case EAxisMode.XZ:
-                    return new Vector3(Grid.TopLeft.x, 0, Grid.TopLeft.y);
+                    return new Vector3(grid.TopLeft.x, 0, grid.TopLeft.y);
                 case EAxisMode.XY:
-                    return new Vector3(Grid.TopLeft.x, Grid.TopLeft.y, 0);
+                    return new Vector3(grid.TopLeft.x, grid.TopLeft.y, 0);
             }
             return Vector3.zero;
         }
 
-        public Vector3 GetCellSize()
+        public Vector3 GetCellSize(IGridDimensions2D grid)
         {
             switch (AxisMode)
             {
                 case EAxisMode.XZ:
-                    return new Vector3(Grid.CellSize.x, 0, Grid.CellSize.y);
+                    return new Vector3(grid.CellSize.x, 0, grid.CellSize.y);
                 case EAxisMode.XY:
-                    return new Vector3(Grid.CellSize.x, Grid.CellSize.y, 0);
+                    return new Vector3(grid.CellSize.x, grid.CellSize.y, 0);
             }
             return Vector3.zero;
         }
 
-        public Vector3 GetOffsets(int x, int y)
+        public Vector3 GetOffsets(IGridDimensions2D grid, int x, int y)
         {
             switch (AxisMode)
             {
                 case EAxisMode.XZ:
-                    return new Vector3(Grid.CellSize.x * x, 0, Grid.CellSize.y * y);
+                    return new Vector3(grid.CellSize.x * x, 0, grid.CellSize.y * y);
                 case EAxisMode.XY:
-                    return new Vector3(Grid.CellSize.x * x, Grid.CellSize.y * y, 0);
+                    return new Vector3(grid.CellSize.x * x, grid.CellSize.y * y, 0);
             }
             return Vector3.zero;
+        }
+
+        public Vector2 GetPosition(LiteNetLibIdentity identity)
+        {
+            // find players within range
+            switch (AxisMode)
+            {
+                case EAxisMode.XZ:
+                    return new Vector2(identity.transform.position.x, identity.transform.position.z);
+                case EAxisMode.XY:
+                    return new Vector2(identity.transform.position.x, identity.transform.position.y);
+            }
+            return Vector2.zero;
         }
 
         private void InitGrid()
@@ -177,17 +193,58 @@ namespace LiteNetLibManager.SuperGrid2D
             switch (axisMode)
             {
                 case EAxisMode.XZ:
-                    Grid = new DynamicGrid2D<uint, LiteNetLibIdentity>(
+                    grid = new StaticGrid2D<uint>(
                         new Vector2(bounds.min.x, bounds.min.z),
                         bounds.size.x, bounds.size.z, cellSize);
                     break;
                 case EAxisMode.XY:
-                    Grid = new DynamicGrid2D<uint, LiteNetLibIdentity>(
+                    grid = new StaticGrid2D<uint>(
                         new Vector2(bounds.min.x, bounds.min.y),
                         bounds.size.x, bounds.size.y, cellSize);
                     break;
             }
             AxisMode = axisMode;
+        }
+
+        private void Update()
+        {
+            if (!IsServer || grid == null)
+            {
+                // Update at server only
+                return;
+            }
+            updateCountDown -= Time.unscaledDeltaTime;
+            if (updateCountDown <= 0)
+            {
+                updateCountDown = updateInterval;
+                grid.Clear();
+                foreach (LiteNetLibIdentity spawnedObject in Manager.Assets.GetSpawnedObjects())
+                {
+                    grid.Add(spawnedObject.ObjectId, new Circle(GetPosition(spawnedObject), GetVisibleRange(spawnedObject)));
+                }
+                HashSet<uint> subscribings = new HashSet<uint>();
+                foreach (LiteNetLibPlayer player in Manager.GetPlayers())
+                {
+                    if (!player.IsReady)
+                    {
+                        // Don't subscribe if player not ready
+                        continue;
+                    }
+                    foreach (LiteNetLibIdentity playerObject in player.GetSpawnedObjects())
+                    {
+                        // Update subscribing list, it will unsubscribe objects which is not in this list
+                        subscribings.Clear();
+                        LiteNetLibIdentity contactedObject;
+                        foreach (uint contactedObjectId in grid.Contact(new Point(GetPosition(playerObject))))
+                        {
+                            if (Manager.Assets.TryGetSpawnedObject(contactedObjectId, out contactedObject) &&
+                                ShouldSubscribe(playerObject, contactedObject, false))
+                                subscribings.Add(contactedObjectId);
+                        }
+                        playerObject.UpdateSubscribings(subscribings);
+                    }
+                }
+            }
         }
     }
 }
