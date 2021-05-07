@@ -232,6 +232,9 @@ namespace LiteNetLibManager.SuperGrid2D
                     }
                     foreach (LiteNetLibIdentity playerObject in player.GetSpawnedObjects())
                     {
+                        // Skip destroyed player object
+                        if (playerObject == null)
+                            continue;
                         // Update subscribing list, it will unsubscribe objects which is not in this list
                         subscribings.Clear();
                         LiteNetLibIdentity contactedObject;
