@@ -26,7 +26,10 @@ namespace LiteNetLibManager.SuperGrid2D
             XY
         }
 
-        public EGenerateGridMode generateGridMode = EGenerateGridMode.Renderer;
+        public bool generateGridByRenderers = true;
+        public bool generateGridByCollider3D = false;
+        public bool generateGridByCollider2D = false;
+        public bool generateGridByTerrain = true;
         public EAxisMode axisMode = EAxisMode.XZ;
         public bool includeInactiveComponents = true;
         public float cellSize = 100f;
@@ -127,67 +130,61 @@ namespace LiteNetLibManager.SuperGrid2D
             List<TerrainCollider> terrainColliders = new List<TerrainCollider>();
             for (int i = 0; i < rootGameObjects.Length; ++i)
             {
-                switch (generateGridMode)
-                {
-                    case EGenerateGridMode.Renderer:
-                        tempRenderers.AddRange(rootGameObjects[i].GetComponentsInChildren<Renderer>(includeInactiveComponents));
-                        break;
-                    case EGenerateGridMode.Collider3D:
-                        tempColliders3D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider>(includeInactiveComponents));
-                        break;
-                    case EGenerateGridMode.Collider2D:
-                        tempColliders2D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider2D>(includeInactiveComponents));
-                        break;
-                    case EGenerateGridMode.Terrain:
-                        terrainColliders.AddRange(rootGameObjects[i].GetComponentsInChildren<TerrainCollider>(includeInactiveComponents));
-                        break;
-                }
+                if (generateGridByRenderers)
+                    tempRenderers.AddRange(rootGameObjects[i].GetComponentsInChildren<Renderer>(includeInactiveComponents));
+                if (generateGridByCollider3D)
+                    tempColliders3D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider>(includeInactiveComponents));
+                if (generateGridByCollider2D)
+                    tempColliders2D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider2D>(includeInactiveComponents));
+                if (generateGridByTerrain)
+                    terrainColliders.AddRange(rootGameObjects[i].GetComponentsInChildren<TerrainCollider>(includeInactiveComponents));
             }
             // Make bounds
             bool setBoundsOnce = false;
             Bounds bounds = default;
-            switch (generateGridMode)
+            if (generateGridByRenderers)
             {
-                case EGenerateGridMode.Renderer:
-                    foreach (Renderer comp in tempRenderers)
-                    {
-                        if (!setBoundsOnce)
-                            bounds = comp.bounds;
-                        else
-                            bounds.Encapsulate(comp.bounds);
-                        setBoundsOnce = true;
-                    }
-                    break;
-                case EGenerateGridMode.Collider3D:
-                    foreach (Collider comp in tempColliders3D)
-                    {
-                        if (!setBoundsOnce)
-                            bounds = comp.bounds;
-                        else
-                            bounds.Encapsulate(comp.bounds);
-                        setBoundsOnce = true;
-                    }
-                    break;
-                case EGenerateGridMode.Collider2D:
-                    foreach (Collider2D comp in tempColliders2D)
-                    {
-                        if (!setBoundsOnce)
-                            bounds = comp.bounds;
-                        else
-                            bounds.Encapsulate(comp.bounds);
-                        setBoundsOnce = true;
-                    }
-                    break;
-                case EGenerateGridMode.Terrain:
-                    foreach (TerrainCollider comp in terrainColliders)
-                    {
-                        if (!setBoundsOnce)
-                            bounds = comp.terrainData.bounds;
-                        else
-                            bounds.Encapsulate(comp.terrainData.bounds);
-                        setBoundsOnce = true;
-                    }
-                    break;
+                foreach (Renderer comp in tempRenderers)
+                {
+                    if (!setBoundsOnce)
+                        bounds = comp.bounds;
+                    else
+                        bounds.Encapsulate(comp.bounds);
+                    setBoundsOnce = true;
+                }
+            }
+            if (generateGridByCollider3D)
+            {
+                foreach (Collider comp in tempColliders3D)
+                {
+                    if (!setBoundsOnce)
+                        bounds = comp.bounds;
+                    else
+                        bounds.Encapsulate(comp.bounds);
+                    setBoundsOnce = true;
+                }
+            }
+            if (generateGridByCollider2D)
+            {
+                foreach (Collider2D comp in tempColliders2D)
+                {
+                    if (!setBoundsOnce)
+                        bounds = comp.bounds;
+                    else
+                        bounds.Encapsulate(comp.bounds);
+                    setBoundsOnce = true;
+                }
+            }
+            if (generateGridByTerrain)
+            {
+                foreach (TerrainCollider comp in terrainColliders)
+                {
+                    if (!setBoundsOnce)
+                        bounds = comp.terrainData.bounds;
+                    else
+                        bounds.Encapsulate(comp.terrainData.bounds);
+                    setBoundsOnce = true;
+                }
             }
             // Generate grid
             switch (axisMode)
