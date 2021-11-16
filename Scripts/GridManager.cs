@@ -217,7 +217,8 @@ namespace LiteNetLibManager.SuperGrid2D
                 grid.Clear();
                 foreach (LiteNetLibIdentity spawnedObject in Manager.Assets.GetSpawnedObjects())
                 {
-                    grid.Add(spawnedObject.ObjectId, new Circle(GetPosition(spawnedObject), GetVisibleRange(spawnedObject)));
+                    if (spawnedObject != null)
+                        grid.Add(spawnedObject.ObjectId, new Circle(GetPosition(spawnedObject), GetVisibleRange(spawnedObject)));
                 }
                 HashSet<uint> subscribings = new HashSet<uint>();
                 foreach (LiteNetLibPlayer player in Manager.GetPlayers())
