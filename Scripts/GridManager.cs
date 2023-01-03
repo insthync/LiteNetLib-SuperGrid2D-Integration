@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.SceneManagement;
 
 namespace LiteNetLibManager.SuperGrid2D
@@ -12,24 +13,18 @@ namespace LiteNetLibManager.SuperGrid2D
     /// </summary>
     public class GridManager : BaseInterestManager
     {
-        public enum EGenerateGridMode
-        {
-            Renderer,
-            Collider3D,
-            Collider2D,
-            Terrain,
-        };
-
         public enum EAxisMode
         {
             XZ,
             XY
         }
 
-        public bool generateGridByRenderers = true;
-        public bool generateGridByCollider3D = false;
-        public bool generateGridByCollider2D = false;
-        public bool generateGridByTerrain = true;
+        private struct CellObject
+        {
+            public uint objectId;
+            public Circle shape;
+        }
+
         public EAxisMode axisMode = EAxisMode.XZ;
         public bool includeInactiveComponents = true;
         public float cellSize = 100f;
@@ -37,39 +32,8 @@ namespace LiteNetLibManager.SuperGrid2D
         public float updateInterval = 1.0f;
         public static EAxisMode AxisMode { get; private set; }
 
-        private StaticGrid2D<uint> grid = null;
         private float updateCountDown = 0f;
-
-        protected override void Awake()
-        {
-            base.Awake();
-            Manager.Assets.onInitialize.AddListener(InitGrid);
-        }
-
-        private void OnDestroy()
-        {
-            Manager.Assets.onInitialize.RemoveListener(InitGrid);
-            grid = null;
-        }
-
-#if UNITY_EDITOR
-        private void OnDrawGizmosSelected()
-        {
-            if (grid == null) return;
-            Vector3 topLeft = GetTopLeft(grid);
-            Vector3 cellSize = GetCellSize(grid);
-            Vector3 halfCellSize = cellSize * 0.5f;
-            Gizmos.color = Color.green;
-            for (int y = 0; y < grid.Rows; ++y)
-            {
-                for (int x = 0; x < grid.Rows; ++x)
-                {
-                    Vector3 offsets = GetOffsets(grid, x, y);
-                    Gizmos.DrawWireCube(topLeft + halfCellSize + offsets, cellSize);
-                }
-            }
-        }
-#endif
+        private List<CellObject> cellObjects = new List<CellObject>(1024);
 
         public Vector3 GetTopLeft(IGridDimensions2D grid)
         {
@@ -120,92 +84,9 @@ namespace LiteNetLibManager.SuperGrid2D
             return Vector2.zero;
         }
 
-        private void InitGrid()
-        {
-            // Collect components
-            GameObject[] rootGameObjects = SceneManager.GetActiveScene().GetRootGameObjects();
-            List<Renderer> tempRenderers = new List<Renderer>();
-            List<Collider> tempColliders3D = new List<Collider>();
-            List<Collider2D> tempColliders2D = new List<Collider2D>();
-            List<TerrainCollider> terrainColliders = new List<TerrainCollider>();
-            for (int i = 0; i < rootGameObjects.Length; ++i)
-            {
-                if (generateGridByRenderers)
-                    tempRenderers.AddRange(rootGameObjects[i].GetComponentsInChildren<Renderer>(includeInactiveComponents));
-                if (generateGridByCollider3D)
-                    tempColliders3D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider>(includeInactiveComponents));
-                if (generateGridByCollider2D)
-                    tempColliders2D.AddRange(rootGameObjects[i].GetComponentsInChildren<Collider2D>(includeInactiveComponents));
-                if (generateGridByTerrain)
-                    terrainColliders.AddRange(rootGameObjects[i].GetComponentsInChildren<TerrainCollider>(includeInactiveComponents));
-            }
-            // Make bounds
-            bool setBoundsOnce = false;
-            Bounds bounds = default;
-            if (generateGridByRenderers)
-            {
-                foreach (Renderer comp in tempRenderers)
-                {
-                    if (!setBoundsOnce)
-                        bounds = comp.bounds;
-                    else
-                        bounds.Encapsulate(comp.bounds);
-                    setBoundsOnce = true;
-                }
-            }
-            if (generateGridByCollider3D)
-            {
-                foreach (Collider comp in tempColliders3D)
-                {
-                    if (!setBoundsOnce)
-                        bounds = comp.bounds;
-                    else
-                        bounds.Encapsulate(comp.bounds);
-                    setBoundsOnce = true;
-                }
-            }
-            if (generateGridByCollider2D)
-            {
-                foreach (Collider2D comp in tempColliders2D)
-                {
-                    if (!setBoundsOnce)
-                        bounds = comp.bounds;
-                    else
-                        bounds.Encapsulate(comp.bounds);
-                    setBoundsOnce = true;
-                }
-            }
-            if (generateGridByTerrain)
-            {
-                foreach (TerrainCollider comp in terrainColliders)
-                {
-                    if (!setBoundsOnce)
-                        bounds = comp.terrainData.bounds;
-                    else
-                        bounds.Encapsulate(comp.terrainData.bounds);
-                    setBoundsOnce = true;
-                }
-            }
-            // Generate grid
-            switch (axisMode)
-            {
-                case EAxisMode.XZ:
-                    grid = new StaticGrid2D<uint>(
-                        new Vector2(bounds.min.x, bounds.min.z),
-                        bounds.size.x, bounds.size.z, cellSize);
-                    break;
-                case EAxisMode.XY:
-                    grid = new StaticGrid2D<uint>(
-                        new Vector2(bounds.min.x, bounds.min.y),
-                        bounds.size.x, bounds.size.y, cellSize);
-                    break;
-            }
-            AxisMode = axisMode;
-        }
-
         private void Update()
         {
-            if (!IsServer || grid == null)
+            if (!IsServer)
             {
                 // Update at server only
                 return;
@@ -214,12 +95,40 @@ namespace LiteNetLibManager.SuperGrid2D
             if (updateCountDown <= 0)
             {
                 updateCountDown = updateInterval;
-                grid.Clear();
+                Profiler.BeginSample("GridManager - Update");
+                cellObjects.Clear();
+                float minX = float.MaxValue;
+                float minY = float.MaxValue;
+                float maxX = float.MinValue;
+                float maxY = float.MinValue;
+
+                Vector2 tempPosition;
                 foreach (LiteNetLibIdentity spawnedObject in Manager.Assets.GetSpawnedObjects())
                 {
-                    if (spawnedObject != null)
-                        grid.Add(spawnedObject.ObjectId, new Circle(GetPosition(spawnedObject), GetVisibleRange(spawnedObject)));
+                    if (spawnedObject == null)
+                        continue;
+                    tempPosition = GetPosition(spawnedObject);
+                    cellObjects.Add(new CellObject()
+                    {
+                        objectId = spawnedObject.ObjectId,
+                        shape = new Circle(tempPosition, GetVisibleRange(spawnedObject)),
+                    });
+                    if (tempPosition.x < minX)
+                        minX = tempPosition.x;
+                    if (tempPosition.y < minY)
+                        minY = tempPosition.y;
+                    if (tempPosition.x > maxX)
+                        maxX = tempPosition.x;
+                    if (tempPosition.y > maxY)
+                        maxY = tempPosition.y;
                 }
+
+                StaticGrid2D<uint> grid = new StaticGrid2D<uint>(new Vector2(minX, minY), maxX - minY, maxY - minY, cellSize);
+                for (int i = 0; i < cellObjects.Count; ++i)
+                {
+                    grid.Add(cellObjects[i].objectId, cellObjects[i].shape);
+                }
+
                 HashSet<uint> subscribings = new HashSet<uint>();
                 foreach (LiteNetLibPlayer player in Manager.GetPlayers())
                 {
@@ -242,6 +151,7 @@ namespace LiteNetLibManager.SuperGrid2D
                         playerObject.UpdateSubscribings(subscribings);
                     }
                 }
+                Profiler.EndSample();
             }
         }
     }
