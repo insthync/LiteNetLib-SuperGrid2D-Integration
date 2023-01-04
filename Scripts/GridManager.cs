@@ -123,32 +123,37 @@ namespace LiteNetLibManager.SuperGrid2D
                         maxY = tempPosition.y;
                 }
 
-                StaticGrid2D<uint> grid = new StaticGrid2D<uint>(new Vector2(minX, minY), maxX - minY, maxY - minY, cellSize);
-                for (int i = 0; i < cellObjects.Count; ++i)
+                float width = maxX - minX;
+                float height = maxY - minY;
+                if (width > 0 && height > 0)
                 {
-                    grid.Add(cellObjects[i].objectId, cellObjects[i].shape);
-                }
-
-                HashSet<uint> subscribings = new HashSet<uint>();
-                foreach (LiteNetLibPlayer player in Manager.GetPlayers())
-                {
-                    if (!player.IsReady)
+                    StaticGrid2D<uint> grid = new StaticGrid2D<uint>(new Vector2(minX, minY), width, height, cellSize);
+                    for (int i = 0; i < cellObjects.Count; ++i)
                     {
-                        // Don't subscribe if player not ready
-                        continue;
+                        grid.Add(cellObjects[i].objectId, cellObjects[i].shape);
                     }
-                    foreach (LiteNetLibIdentity playerObject in player.GetSpawnedObjects())
+
+                    HashSet<uint> subscribings = new HashSet<uint>();
+                    foreach (LiteNetLibPlayer player in Manager.GetPlayers())
                     {
-                        // Update subscribing list, it will unsubscribe objects which is not in this list
-                        subscribings.Clear();
-                        LiteNetLibIdentity contactedObject;
-                        foreach (uint contactedObjectId in grid.Contact(new Point(GetPosition(playerObject))))
+                        if (!player.IsReady)
                         {
-                            if (Manager.Assets.TryGetSpawnedObject(contactedObjectId, out contactedObject) &&
-                                ShouldSubscribe(playerObject, contactedObject, false))
-                                subscribings.Add(contactedObjectId);
+                            // Don't subscribe if player not ready
+                            continue;
                         }
-                        playerObject.UpdateSubscribings(subscribings);
+                        foreach (LiteNetLibIdentity playerObject in player.GetSpawnedObjects())
+                        {
+                            // Update subscribing list, it will unsubscribe objects which is not in this list
+                            subscribings.Clear();
+                            LiteNetLibIdentity contactedObject;
+                            foreach (uint contactedObjectId in grid.Contact(new Point(GetPosition(playerObject))))
+                            {
+                                if (Manager.Assets.TryGetSpawnedObject(contactedObjectId, out contactedObject) &&
+                                    ShouldSubscribe(playerObject, contactedObject, false))
+                                    subscribings.Add(contactedObjectId);
+                            }
+                            playerObject.UpdateSubscribings(subscribings);
+                        }
                     }
                 }
                 Profiler.EndSample();
