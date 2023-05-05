@@ -32,8 +32,8 @@ namespace LiteNetLibManager.SuperGrid2D
         public float updateInterval = 1.0f;
         public static EAxisMode AxisMode { get; private set; }
 
-        private float updateCountDown = 0f;
-        private List<CellObject> cellObjects = new List<CellObject>(1024);
+        private float _lastUpdateTime = float.MinValue;
+        private List<CellObject> _cellObjects = new List<CellObject>(1024);
 
         public Vector3 GetTopLeft(IGridDimensions2D grid)
         {
@@ -91,73 +91,74 @@ namespace LiteNetLibManager.SuperGrid2D
                 // Update at server only
                 return;
             }
-            updateCountDown -= Time.unscaledDeltaTime;
-            if (updateCountDown <= 0)
+
+            float currentTime = Time.unscaledTime;
+            if (_lastUpdateTime - currentTime < updateInterval)
+                return;
+            _lastUpdateTime = currentTime;
+
+            Profiler.BeginSample("GridManager - Update");
+            _cellObjects.Clear();
+            float minX = float.MaxValue;
+            float minY = float.MaxValue;
+            float maxX = float.MinValue;
+            float maxY = float.MinValue;
+
+            Vector2 tempPosition;
+            foreach (LiteNetLibIdentity spawnedObject in Manager.Assets.GetSpawnedObjects())
             {
-                updateCountDown = updateInterval;
-                Profiler.BeginSample("GridManager - Update");
-                cellObjects.Clear();
-                float minX = float.MaxValue;
-                float minY = float.MaxValue;
-                float maxX = float.MinValue;
-                float maxY = float.MinValue;
-
-                Vector2 tempPosition;
-                foreach (LiteNetLibIdentity spawnedObject in Manager.Assets.GetSpawnedObjects())
+                if (spawnedObject == null)
+                    continue;
+                tempPosition = GetPosition(spawnedObject);
+                _cellObjects.Add(new CellObject()
                 {
-                    if (spawnedObject == null)
-                        continue;
-                    tempPosition = GetPosition(spawnedObject);
-                    cellObjects.Add(new CellObject()
-                    {
-                        objectId = spawnedObject.ObjectId,
-                        shape = new Circle(tempPosition, GetVisibleRange(spawnedObject)),
-                    });
-                    if (tempPosition.x < minX)
-                        minX = tempPosition.x;
-                    if (tempPosition.y < minY)
-                        minY = tempPosition.y;
-                    if (tempPosition.x > maxX)
-                        maxX = tempPosition.x;
-                    if (tempPosition.y > maxY)
-                        maxY = tempPosition.y;
-                }
-
-                float width = maxX - minX;
-                float height = maxY - minY;
-                if (width > 0 && height > 0)
-                {
-                    StaticGrid2D<uint> grid = new StaticGrid2D<uint>(new Vector2(minX, minY), width, height, cellSize);
-                    for (int i = 0; i < cellObjects.Count; ++i)
-                    {
-                        grid.Add(cellObjects[i].objectId, cellObjects[i].shape);
-                    }
-
-                    HashSet<uint> subscribings = new HashSet<uint>();
-                    foreach (LiteNetLibPlayer player in Manager.GetPlayers())
-                    {
-                        if (!player.IsReady)
-                        {
-                            // Don't subscribe if player not ready
-                            continue;
-                        }
-                        foreach (LiteNetLibIdentity playerObject in player.GetSpawnedObjects())
-                        {
-                            // Update subscribing list, it will unsubscribe objects which is not in this list
-                            subscribings.Clear();
-                            LiteNetLibIdentity contactedObject;
-                            foreach (uint contactedObjectId in grid.Contact(new Point(GetPosition(playerObject))))
-                            {
-                                if (Manager.Assets.TryGetSpawnedObject(contactedObjectId, out contactedObject) &&
-                                    ShouldSubscribe(playerObject, contactedObject, false))
-                                    subscribings.Add(contactedObjectId);
-                            }
-                            playerObject.UpdateSubscribings(subscribings);
-                        }
-                    }
-                }
-                Profiler.EndSample();
+                    objectId = spawnedObject.ObjectId,
+                    shape = new Circle(tempPosition, GetVisibleRange(spawnedObject)),
+                });
+                if (tempPosition.x < minX)
+                    minX = tempPosition.x;
+                if (tempPosition.y < minY)
+                    minY = tempPosition.y;
+                if (tempPosition.x > maxX)
+                    maxX = tempPosition.x;
+                if (tempPosition.y > maxY)
+                    maxY = tempPosition.y;
             }
+
+            float width = maxX - minX;
+            float height = maxY - minY;
+            if (width > 0 && height > 0)
+            {
+                StaticGrid2D<uint> grid = new StaticGrid2D<uint>(new Vector2(minX, minY), width, height, cellSize);
+                for (int i = 0; i < _cellObjects.Count; ++i)
+                {
+                    grid.Add(_cellObjects[i].objectId, _cellObjects[i].shape);
+                }
+
+                HashSet<uint> subscribings = new HashSet<uint>();
+                foreach (LiteNetLibPlayer player in Manager.GetPlayers())
+                {
+                    if (!player.IsReady)
+                    {
+                        // Don't subscribe if player not ready
+                        continue;
+                    }
+                    foreach (LiteNetLibIdentity playerObject in player.GetSpawnedObjects())
+                    {
+                        // Update subscribing list, it will unsubscribe objects which is not in this list
+                        subscribings.Clear();
+                        LiteNetLibIdentity contactedObject;
+                        foreach (uint contactedObjectId in grid.Contact(new Point(GetPosition(playerObject))))
+                        {
+                            if (Manager.Assets.TryGetSpawnedObject(contactedObjectId, out contactedObject) &&
+                                ShouldSubscribe(playerObject, contactedObject, false))
+                                subscribings.Add(contactedObjectId);
+                        }
+                        playerObject.UpdateSubscribings(subscribings);
+                    }
+                }
+            }
+            Profiler.EndSample();
         }
     }
 }
