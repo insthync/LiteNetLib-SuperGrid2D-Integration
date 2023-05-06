@@ -93,7 +93,7 @@ namespace LiteNetLibManager.SuperGrid2D
             }
 
             float currentTime = Time.unscaledTime;
-            if (_lastUpdateTime - currentTime < updateInterval)
+            if (currentTime - _lastUpdateTime < updateInterval)
                 return;
             _lastUpdateTime = currentTime;
 
