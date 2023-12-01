@@ -1,9 +1,7 @@
 ﻿using SuperGrid2D;
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Profiling;
-using UnityEngine.SceneManagement;
 
 namespace LiteNetLibManager.SuperGrid2D
 {
@@ -32,7 +30,7 @@ namespace LiteNetLibManager.SuperGrid2D
         public float updateInterval = 1.0f;
         public static EAxisMode AxisMode { get; private set; }
 
-        private float _lastUpdateTime = float.MinValue;
+        private float _updateCountDown;
         private List<CellObject> _cellObjects = new List<CellObject>(1024);
 
         public Vector3 GetTopLeft(IGridDimensions2D grid)
@@ -84,19 +82,18 @@ namespace LiteNetLibManager.SuperGrid2D
             return Vector2.zero;
         }
 
-        private void Update()
+        public override void Setup(LiteNetLibGameManager manager)
         {
-            if (!IsServer)
-            {
-                // Update at server only
-                return;
-            }
+            base.Setup(manager);
+            _updateCountDown = updateInterval;
+        }
 
-            float currentTime = Time.unscaledTime;
-            if (currentTime - _lastUpdateTime < updateInterval)
+        public override void UpdateInterestManagement(float deltaTime)
+        {
+            _updateCountDown -= deltaTime;
+            if (_updateCountDown > 0)
                 return;
-            _lastUpdateTime = currentTime;
-
+            _updateCountDown = updateInterval;
             Profiler.BeginSample("GridManager - Update");
             _cellObjects.Clear();
             float minX = float.MaxValue;
